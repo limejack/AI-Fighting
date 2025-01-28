@@ -1,6 +1,5 @@
-import pygame
+import pygame,sys,pygame.locals
 import numpy as np
-import keyboard as k
 from type_aliases import Rectangle
 
 SCALE = 1.5
@@ -248,5 +247,9 @@ if __name__ == '__main__':
     while True:
         actions = get_user_actions()
         _ = env.step(actions, display=True)
+        for event in pygame.event.get():
+            if event.type == pygame.locals.QUIT:
+                pygame.quit()
+                sys.exit()
 
     pygame.quit()
