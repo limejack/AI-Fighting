@@ -32,7 +32,7 @@ class Environment:
         self.platforms = [
             Platform(self, (400,150), (300,20)),
             Platform(self, (550,250), (20,200)),
-            Platform(self, (500,200), (20,20)),
+            Platform(self, (500,210), (20,20)),
             Platform(self, (300,220), (100,20)),
             Platform(self, (270,290), (40,20))
         ]
@@ -72,8 +72,11 @@ class Environment:
     def update_position(self, player):
         player.pos = self.move(player.pos, (0,player.vel[1]), scale=DT)
         update_vec = (0,[-1,1][player.vel[1] < 0])
-        player.pos = self.move(player.pos, update_vec, scale=-1)
-        move_up = True # if no platforms touched, move the player pos back up a pixel
+        # move player pos down one pixel to check for ground
+        move_up = False
+        if player.vel[1] < 0:
+            player.pos = self.move(player.pos, (0,-1))
+            move_up = True # if no platforms touched, move the player pos back up a pixel
         for platform in self.platforms:
             while self.check_rectangle_collision(player.get_rect(), platform.get_rect()):
                 move_up = False
@@ -83,7 +86,7 @@ class Environment:
                     player.jump_flag = True
                     player.double_jump_flag = True
                     player.dash_flag = True
-        if move_up: player.pos = self.move(player.pos, update_vec)
+        if move_up: player.pos = self.move(player.pos, (0,1))
 
         player.pos = self.move(player.pos, (player.vel[0],0), scale=DT)
         update_vec = ([-1,1][player.vel[0] < 0],0)
@@ -97,7 +100,7 @@ class Environment:
         x,y = position
         rect_x, rect_y, rect_w, rect_h = *rect.pos, *rect.dim
 
-        return rect_x-rect_w/2 <= x <= rect_x-rect_w/2 and rect_y-rect_2/2 <= y <= rect_y+rect_h/2
+        return rect_x-rect_w/2 < x < rect_x-rect_w/2 and rect_y-rect_2/2 < y < rect_y+rect_h/2
         
 
     def check_rectangle_collision(self, rect1, rect2):
@@ -106,7 +109,7 @@ class Environment:
         left1, right1, top1, bottom1 = x1 - w1/2, x1 + w1/2, y1 - h1/2, y1 + h1/2
         left2, right2, top2, bottom2 = x2 - w2/2, x2 + w2/2, y2 - h2/2, y2 + h2/2
 
-        return not (right1 <= left2 or right2 <= left1 or bottom1 <= top2 or bottom2 <= top1)
+        return not (right1 < left2 or right2 < left1 or bottom1 < top2 or bottom2 < top1)
 
 
 class Platform:
@@ -167,7 +170,7 @@ class Player:
             self.jump_flag = False
             self.jumping_flag = False
         
-        if actions[1] == 2:
+        if actions[1] == 2 and self.dash_timer == 0:
             if self.jump_flag:
                 self.jump_flag = False
                 self.vel = (self.vel[0],self.jump_power)
@@ -190,12 +193,11 @@ class Player:
             self.dash_cooldown_timer = self.dash_time + self.dash_cooldown
 
         if self.dash_timer:
-            self.vel = np.multiply((self.dash_speed, 0), self.facing)
+            self.vel = (self.dash_speed*self.facing, 0.001)
             self.dash_timer -= 1
 
         if self.dash_cooldown_timer: self.dash_cooldown_timer -=1
             
-
         # gravity has stronger effect when falling down
         self.vel = np.add(self.vel, (0,-G*DT))
         if self.vel[1] < 0: self.vel = np.add(self.vel, (0,-G*DT*0.5))
