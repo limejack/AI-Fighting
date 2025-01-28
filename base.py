@@ -67,11 +67,14 @@ class Environment:
     def update_position(self, player):
         player.pos = self.move(player.pos, (0,player.vel[1]), scale=DT)
         update_vec = (0,[-1,1][player.vel[1] < 0])
+        player.pos = self.move(player.pos, update_vec, scale=-1)
         for platform in self.platforms:
             while self.check_rectangle_collision(player.get_rect(), platform.get_rect()):
                 player.pos = self.move(player.pos, update_vec)
                 player.vel = player.vel[0], 0
-                if update_vec[1] > 0: player.jump_flag = True
+                if update_vec[1] > 0:
+                    player.jump_flag = True
+                    player.double_jump_flag = True
 
         player.pos = self.move(player.pos, (player.vel[0],0), scale=DT)
         update_vec = ([-1,1][player.vel[0] < 0],0)
@@ -118,6 +121,7 @@ class Player:
         self.dims = 20, 30
         self.vel = 0, 0
         self.jump_flag = False
+        self.double_jump_flag = False
         self.jumping_flag = False
 
         self.walk_speed = 15
@@ -128,10 +132,11 @@ class Player:
         self.pos = 400, 200
         self.vel = 0, 0
         self.jump_flag = False
+        self.double_jump_flag = False
+        # flag for whether jump button is being held to extend jump height
         self.jumping_flag = False
 
     def step(self, actions):
-
         self.vel = (np.multiply(self.vel[0], self.friction),
                     self.vel[1])
         actions[0] -= 1
@@ -141,12 +146,15 @@ class Player:
             self.jump_flag = False
             self.jumping_flag = False
         
-        if actions[1] == 1:
+        if actions[1] == 2:
             if self.jump_flag:
                 self.jump_flag = False
-                self.jumping_flag = True
-                self.vel = np.add(self.vel, (0,self.jump_power))
-        else:
+                self.vel = (self.vel[0],self.jump_power)
+            elif self.double_jump_flag:
+                self.double_jump_flag = False
+                self.vel = (self.vel[0],self.jump_power)
+            self.jumping_flag = True
+        elif actions[1] == 0:
             if self.jumping_flag:
                 self.vel = (self.vel[0], 0)
             self.jumping_flag = False
@@ -165,9 +173,11 @@ class Player:
         return Rectangle(self.pos, self.dims)
 
 
+z_hold = False
 def get_user_actions():
+    global z_hold
     # left:0   _:1   right:2
-    # _:0   jump:1
+    # _:0   hold:1   jump:2
     actions = [1,0]
     keys = pygame.key.get_pressed()
     if keys[pygame.K_LEFT]:
@@ -175,7 +185,12 @@ def get_user_actions():
     if keys[pygame.K_RIGHT]:
         actions[0] += 1
     if keys[pygame.K_z]:
-        actions[1] = 1
+        if not z_hold:
+            actions[1] = 1
+        z_hold = True
+        actions[1] += 1
+    else:
+        z_hold = False
 
     return actions
 
