@@ -1,3 +1,5 @@
+import pygame
+
 class Animation():
     def __init__(self,images,rate,size=(0,0)):
         if type(images[0]) == str:
