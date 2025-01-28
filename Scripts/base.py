@@ -1,9 +1,6 @@
 import pygame
 import numpy as np
-import cv2, math, time, random
 import keyboard as k
-import torch
-
 from type_aliases import Rectangle
 
 SCALE = 1.5
