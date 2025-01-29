@@ -7,7 +7,7 @@ class Animation():
         self.animations = {"N/A":[]}
         for folder_path in folder_paths:
             imgs = []
-            for file in glob.glob(f"Sprites/{folder_path}/*.png"):
+            for file in glob.glob(f"../Sprites/{folder_path}/*.png"):
                 img = pygame.image.load(file).convert_alpha()
                 img = pygame.transform.scale(img, size)
                 img = pygame.transform.flip(img, False, True)

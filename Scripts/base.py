@@ -1,6 +1,5 @@
 import pygame
 import numpy as np
-import keyboard as k
 
 from type_aliases import Rectangle
 from animation import Animation
