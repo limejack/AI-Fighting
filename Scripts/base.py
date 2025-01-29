@@ -1,6 +1,9 @@
-import pygame,sys,pygame.locals
+import pygame
 import numpy as np
+import keyboard as k
+
 from type_aliases import Rectangle
+from animation import Animation
 
 SCALE = 1.5
 DT = 0.1
@@ -18,9 +21,11 @@ class Environment:
     def __init__(self):
         self.screen_size = (800, 400)
         # everything is drawn onto surface and scaled up onto the screen
-        self.surface = pygame.Surface(self.screen_size) 
+        self.surface = pygame.Surface(self.screen_size, pygame.SRCALPHA) 
         self.screen = pygame.display.set_mode(np.multiply(self.screen_size, SCALE))
         self.clock = pygame.time.Clock()
+        self.max_tick = 120 # supports cycles of 1,2,3,4,5,6,8,9,...
+        self.tick = 0
 
         self.player = Player(self)
 
@@ -36,10 +41,13 @@ class Environment:
         self.reset()
 
     def reset(self):
+        self.tick = 0
         self.player.reset()
 
     # take input and process frame
     def step(self, actions, display=False):
+        self.tick += 1
+        if self.tick == self.max_tick: self.tick = 0
         self.player.step(actions)
         if abs(self.player.pos[0]) > self.death_zone[0] or self.player.pos[1] < self.death_zone[1]:
             self.reset()
@@ -50,10 +58,10 @@ class Environment:
         pygame.event.pump()
         self.surface.fill(COLORS['bg'])
 
-        self.player.display()
-
         for platform in self.platforms:
             platform.display()
+
+        self.player.display()
 
         self.surface = pygame.transform.flip(self.surface, False, True)
         pygame.transform.scale(self.surface, (np.multiply(self.screen_size, SCALE)), self.screen)
@@ -90,7 +98,10 @@ class Environment:
             while self.check_rectangle_collision(player.get_rect(), platform.get_rect()):
                 player.pos = self.move(player.pos, update_vec)
                 player.vel = 0, player.vel[1]
-                
+
+    
+    def check_directions(self, rect): pass
+    
 
     def check_point_rectangle_collision(self, pos, rect):
         x,y = position
@@ -126,6 +137,7 @@ class Platform:
 class Player:
     def __init__(self, parent):
         self.parent = parent
+        self.animation = Animation(["test"], rate=2, size=(150,150))
         self.pos = 0, 0
         self.dims = 20, 30
         self.vel = 0, 0
@@ -137,23 +149,16 @@ class Player:
         self.dash_time = 6 # num frames in dash
         self.dash_cooldown = 25 # num frames to wait after dash
 
+    def reset(self):
+        self.pos = 400, 200
+        self.vel = 0, 0
+        
         self.facing = 1 # left:-1   right:1
         self.jump_flag = False # flag for if jump is available
         self.double_jump_flag = False # flag for if double jump is available
         self.jumping_flag = False # flag for whether jump button is being held to extend jump height
         self.dash_flag = False # flag for if dash is available
         self.dash_timer = 0 # how many frames left in dash
-        self.dash_cooldown_timer = 0
-
-    def reset(self):
-        self.pos = 400, 200
-        self.vel = 0, 0
-        self.facing = 1
-        self.jump_flag = False
-        self.double_jump_flag = False
-        self.jumping_flag = False
-        self.dash_flag = False
-        self.dash_timer = 0
         self.dash_cooldown_timer = 0
 
     def step(self, actions):
@@ -165,7 +170,8 @@ class Player:
         if self.vel[1] < 0:
             self.jump_flag = False
             self.jumping_flag = False
-        
+
+        # if jump pressed and not dashing
         if actions[1] == 2 and self.dash_timer == 0:
             if self.jump_flag:
                 self.jump_flag = False
@@ -175,6 +181,7 @@ class Player:
                 self.vel = (self.vel[0],self.jump_power)
             self.jumping_flag = True
         elif actions[1] == 0:
+            # if jump button let go, remove all vertical velocity for snappiness
             if self.jumping_flag:
                 self.vel = (self.vel[0], 0)
             self.jumping_flag = False
@@ -183,7 +190,9 @@ class Player:
             self.facing = actions[0]
 
         # handle dash input and dash cooldown
+        # if jump pressed and can dash and isn't on cooldown
         if actions[2] == 1 and self.dash_flag and self.dash_cooldown_timer == 0:
+            # if on the ground dash is reenabled
             if not self.jump_flag: self.dash_flag = False
             self.dash_timer = self.dash_time
             self.dash_cooldown_timer = self.dash_time + self.dash_cooldown
@@ -194,28 +203,37 @@ class Player:
 
         if self.dash_cooldown_timer: self.dash_cooldown_timer -=1
             
-        # gravity has stronger effect when falling down
         self.vel = np.add(self.vel, (0,-G*DT))
+        # gravity has stronger effect when falling down
         if self.vel[1] < 0: self.vel = np.add(self.vel, (0,-G*DT*0.5))
-        
+
+        if actions[3] == 1:
+            self.animation.update(animation='test', frame=0)
+        else:
+            self.animation.update()
+
+        self.actions = actions
         self.parent.update_position(self)
         
     def display(self):
         rect = pygame.Rect(self.pos[0]-self.dims[0]/2, self.pos[1]-self.dims[1]/2, *self.dims)
         pygame.draw.rect(self.parent.surface, COLORS['player'], rect)
+        self.animation.display(self.parent.surface, self.pos, flip=(self.facing==-1))
 
     def get_rect(self):
         return Rectangle(self.pos, self.dims)
 
 
 z_hold = False
+x_hold = False
 c_hold = False
 def get_user_actions():
-    global z_hold, c_hold
+    global z_hold, x_hold, c_hold
     # left:0   _:1   right:2
     # _:0   hold:1   jump:2
     # _:0   dash:1
-    actions = [1,0,0]
+    # _:0   attack:1
+    actions = [1,0,0,0]
     keys = pygame.key.get_pressed()
     if keys[pygame.K_LEFT]:
         actions[0] += -1
@@ -227,15 +245,19 @@ def get_user_actions():
             actions[1] = 1
         z_hold = True
         actions[1] += 1
-    else:
-        z_hold = False
+    else: z_hold = False
+
+    if keys[pygame.K_x]:
+        if not x_hold:
+            actions[3] = 1
+        x_hold = True
+    else: x_hold = False
 
     if keys[pygame.K_c]:
         if not c_hold:
             actions[2] = 1
         c_hold = True
-    else:
-        c_hold = False
+    else: c_hold = False
 
     return actions
 
@@ -248,8 +270,7 @@ if __name__ == '__main__':
         actions = get_user_actions()
         _ = env.step(actions, display=True)
         for event in pygame.event.get():
-            if event.type == pygame.locals.QUIT:
+            if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
 
-    pygame.quit()

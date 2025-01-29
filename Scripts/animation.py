@@ -1,63 +1,43 @@
+import glob
 import pygame
+import numpy as np
 
 class Animation():
-    def __init__(self,images,rate,size=(0,0)):
-        if type(images[0]) == str:
-            self.images = self.get_images(images,size)
-        else:
-            self.images = images
-        self.counter = 0
-        self.rate = rate
-
-    def get_images(self,images,size):
-        out = []
-        for i in images:
-            picture = pygame.image.load(i)
-            picture = pygame.transform.scale(picture, size)
-            out.append(picture)
-        return out
-
-    def tick(self):
-        self.counter += 1
-        self.counter = self.counter
-
-    def draw(self,screen,pos):
-        if type(self.rate) == list:
-            place = self.counter%sum(self.rate)
-            for i in range(len(self.rate)):
-                place -= self.rate[i]
-                if place < 0:
-                    temp = i
-                    break
-            img = self.images[temp]
-        elif type(self.rate) == int:
-            img = self.images[(self.counter//self.rate)%len(self.images)]
-
-
-        rect = img.get_rect()
-        self.tick()
-
-        rect = rect.move(pos)
-        screen.blit(img,rect)
-
-
-if __name__ == '__main__':
-    import pygame,sys
-    from pygame.locals import *
-
-    WHITE = (255,255,255)
-
-    screen = pygame.display.set_mode((500,500))
-
-    animation = Animation(['../TestAnimation/Pac-man1.png','../TestAnimation/Pac-man2.png','../TestAnimation/Pac-man3.png'],[120,240,5000],(100,50))
-
-    while True:
-        screen.fill(WHITE)
+    def __init__(self, folder_paths, rate, size=(100,100)):
+        self.animations = {"N/A":[]}
+        for folder_path in folder_paths:
+            imgs = []
+            for file in glob.glob(f"Sprites/{folder_path}/*.png"):
+                img = pygame.image.load(file).convert_alpha()
+                img = pygame.transform.scale(img, size)
+                img = pygame.transform.flip(img, False, True)
+                imgs.append(img)
+            self.animations[folder_path] = imgs
         
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                pygame.quit()
-                sys.exit()
-        animation.draw(screen,(100,100))
-        pygame.display.update()
+        self.rate = rate
+        self.size = size
+
+        self.current_animation = 'N/A'
+        self.current_frame = 0
+        self.tick = 0
+
+    def update(self, animation=None, frame=0):
+        if animation:
+            self.current_animation = animation
+            self.current_frame = frame
+            self.tick = 0
+        else:
+            if self.tick == self.rate:
+                self.current_frame += 1
+                self.tick = 0
+            self.tick += 1
+
+    def display(self, screen, pos, flip=False):
+        if len(self.animations[self.current_animation]) <= self.current_frame:
+            return
+        img = self.animations[self.current_animation][self.current_frame]
+        if flip: img = pygame.transform.flip(img, True, False)
+        pos = np.subtract(pos, np.divide(self.size,2))
+        screen.blit(img, pos)
+
 
