@@ -1,8 +1,9 @@
-import pygame
+import pygame,sys
 import numpy as np
 
 from type_aliases import Rectangle
 from animation import Animation
+from animation import Body
 
 SCALE = 1.5
 DT = 0.1
@@ -16,6 +17,7 @@ COLORS = {
 }
 
 
+
 class Environment:
     def __init__(self):
         self.screen_size = (800, 400)
@@ -25,8 +27,10 @@ class Environment:
         self.clock = pygame.time.Clock()
         self.max_tick = 120 # supports cycles of 1,2,3,4,5,6,8,9,...
         self.tick = 0
+        self.collidables = {}
 
         self.player = Player(self)
+        self.player2 = Player(self)
 
         self.death_zone = (1000, -200)
         self.platforms = [
@@ -42,15 +46,18 @@ class Environment:
     def reset(self):
         self.tick = 0
         self.player.reset()
+        self.player2.reset()
+        self.collidables = {self.player,self.player2}
 
     # take input and process frame
     def step(self, actions, display=False):
         self.tick += 1
         if self.tick == self.max_tick: self.tick = 0
         self.player.step(actions)
+        self.player2.step([1,0,0,0])
         if abs(self.player.pos[0]) > self.death_zone[0] or self.player.pos[1] < self.death_zone[1]:
             self.reset()
-        
+
         if display: self.display()
         
     def display(self):
@@ -61,6 +68,7 @@ class Environment:
             platform.display()
 
         self.player.display()
+        self.player2.display()
 
         self.surface = pygame.transform.flip(self.surface, False, True)
         pygame.transform.scale(self.surface, (np.multiply(self.screen_size, SCALE)), self.screen)
@@ -140,6 +148,10 @@ class Player:
         self.pos = 0, 0
         self.dims = 20, 30
         self.vel = 0, 0
+        self.body = Body([[-self.dims[0]/2, -self.dims[1]/2, *self.dims]])
+
+        self.nonInteractables = {self}
+
 
         self.walk_speed = 15
         self.jump_power = 50
@@ -147,7 +159,8 @@ class Player:
         self.dash_speed = 125
         self.dash_time = 6 # num frames in dash
         self.dash_cooldown = 25 # num frames to wait after dash
-
+    def collides(self,other_body,other_pos):
+        return self.body.collides(other_body,self.pos,other_pos)
     def reset(self):
         self.pos = 400, 200
         self.vel = 0, 0
@@ -159,6 +172,7 @@ class Player:
         self.dash_flag = False # flag for if dash is available
         self.dash_timer = 0 # how many frames left in dash
         self.dash_cooldown_timer = 0
+        
 
     def step(self, actions):
         self.vel = (np.multiply(self.vel[0], self.friction),
@@ -210,6 +224,11 @@ class Player:
             self.animation.update(animation='test', frame=0)
         else:
             self.animation.update()
+
+        #collisions
+        for i in self.parent.collidables:
+            if i in self.nonInteractables:continue
+            if self.collides(i.body,i.pos):print('a')
 
         self.actions = actions
         self.parent.update_position(self)
