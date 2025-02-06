@@ -3,7 +3,7 @@ import pygame
 import numpy as np
 
 class Body():
-    def __init__(self,rects,flipped = 1):
+    def __init__(self,rects,flipped = False):
         self.rects = rects
         self.flipped = flipped
     def check_rectangle_collision(self, rect1, rect2, pos1, pos2):
@@ -19,11 +19,19 @@ class Body():
         return not (right1 < left2 or right2 < left1 or bottom1 < top2 or bottom2 < top1)
     
     def collides(self,other,pos1,pos2):
-        for i in self.rects:
-            for j in other.rects:
+        for i in self.getRects():
+            for j in other.getRects():
                 if self.check_rectangle_collision(i,j,pos1,pos2):
                     return True
         return False
+    def getRects(self):
+        if not self.flipped:
+            return self.rects
+        else:
+            out = []
+            for i in self.rects:
+                out.append([-(i[0]+i[2]),-(i[1]+i[3]),i[2],i[3]])
+        
 class Animation():
     def __init__(self, folder_paths, rate, size=(100,100)):
         self.animations = {"N/A":[]}

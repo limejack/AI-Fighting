@@ -33,6 +33,7 @@ class NeutralAttack(Attack):
         self.collided = set()
 
         self.cool_down = 50
+        self.flipped = self.parent.facing == -1
     def update(self):
         self.animation.update()
 
@@ -42,6 +43,7 @@ class NeutralAttack(Attack):
 
         self.pos = self.parent.pos
         self.body = self.bodies[self.animation.current_frame]
+        self.body.flip = self.parent.facing == -1
         self.cool_down -= 1
     def delete(self):
         self.parent.attacks.remove(self)
@@ -55,7 +57,7 @@ class NeutralAttack(Attack):
     def collide(self,other):
         self.collided.add(other)
         if type(other) == Player:
-            other.vel += np.array([500,50])
+            other.vel += np.array([-500,50]) if self.flipped else np.array([500,50])
         
 class Environment:
     def __init__(self):
