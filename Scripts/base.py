@@ -17,7 +17,46 @@ COLORS = {
 }
 
 
+class Attack():
+    def __init__(self,parent):
+        self.parent = parent
+        self.animation = Animation(["test"], rate=2, size=(150,150))
+    def collide(self,other):
+        pass
+class NeutralAttack(Attack):
+    def __init__(self,parent):
+        super().__init__(parent)
+        self.animation.update(animation='test', frame=0)
+        self.bodies = self.animation.bodies['test']
+        self.body = self.bodies[self.animation.current_frame]
+        self.pos = self.parent.pos
+        self.collided = set()
 
+        self.cool_down = 50
+    def update(self):
+        self.animation.update()
+
+        if self.animation.current_frame >= len(self.bodies):
+            self.delete()
+            return
+
+        self.pos = self.parent.pos
+        self.body = self.bodies[self.animation.current_frame]
+        self.cool_down -= 1
+    def delete(self):
+        self.parent.attacks.remove(self)
+        self.parent.parent.collidables.remove(self)
+    def display(self):
+        self.animation.display(self.parent.parent.surface, self.parent.pos, flip=(self.parent.facing==-1))
+    def collides(self,other):
+        if other == self.parent or other in self.collided or other == self: return False
+        else:
+            return self.body.collides(other.body,self.pos,other.pos)
+    def collide(self,other):
+        self.collided.add(other)
+        if type(other) == Player:
+            other.vel += np.array([500,50])
+        
 class Environment:
     def __init__(self):
         self.screen_size = (800, 400)
@@ -27,10 +66,12 @@ class Environment:
         self.clock = pygame.time.Clock()
         self.max_tick = 120 # supports cycles of 1,2,3,4,5,6,8,9,...
         self.tick = 0
-        self.collidables = {}
 
         self.player = Player(self)
         self.player2 = Player(self)
+
+        self.collidables = {self.player,self.player2}
+
 
         self.death_zone = (1000, -200)
         self.platforms = [
@@ -106,7 +147,13 @@ class Environment:
                 player.pos = self.move(player.pos, update_vec)
                 player.vel = 0, player.vel[1]
 
-    
+        #collisions
+        for i in self.collidables:
+            for j in self.collidables:
+                if i.collides(j) and j.collides(i): #Both sides have to agree that a collision occured
+                    i.collide(j)
+                    j.collide(i)
+
     def check_directions(self, rect): pass
     
 
@@ -144,12 +191,11 @@ class Platform:
 class Player:
     def __init__(self, parent):
         self.parent = parent
-        self.animation = Animation(["test"], rate=2, size=(150,150))
         self.pos = 0, 0
         self.dims = 20, 30
         self.vel = 0, 0
-        self.body = Body([[-self.dims[0]/2, -self.dims[1]/2, *self.dims]])
-
+        self.body = Body([[0,0, *self.dims]])
+        self.attacks = []
         self.nonInteractables = {self}
 
 
@@ -159,8 +205,11 @@ class Player:
         self.dash_speed = 125
         self.dash_time = 6 # num frames in dash
         self.dash_cooldown = 25 # num frames to wait after dash
-    def collides(self,other_body,other_pos):
-        return self.body.collides(other_body,self.pos,other_pos)
+    def collide(self,other):
+        pass
+    def collides(self,other):
+        if self == other: return False
+        return self.body.collides(other.body,self.pos,other.pos)
     def reset(self):
         self.pos = 400, 200
         self.vel = 0, 0
@@ -172,7 +221,9 @@ class Player:
         self.dash_flag = False # flag for if dash is available
         self.dash_timer = 0 # how many frames left in dash
         self.dash_cooldown_timer = 0
-        
+
+        for i in self.attacks:
+            i.delete()
 
     def step(self, actions):
         self.vel = (np.multiply(self.vel[0], self.friction),
@@ -220,15 +271,20 @@ class Player:
         # gravity has stronger effect when falling down
         if self.vel[1] < 0: self.vel = np.add(self.vel, (0,-G*DT*0.5))
 
+        #Basically attack input
         if actions[3] == 1:
-            self.animation.update(animation='test', frame=0)
-        else:
-            self.animation.update()
+            canAttack = True
+            for i in self.attacks:
+                if type(i) == NeutralAttack and i.cool_down >= 0:
+                    canAttack = False
+                    print('a')
+            if canAttack:
+                self.attacks.append(NeutralAttack(self))
+                self.parent.collidables.add(self.attacks[-1])
+        for i in self.attacks:
+            i.update()
+            print(i.cool_down)
 
-        #collisions
-        for i in self.parent.collidables:
-            if i in self.nonInteractables:continue
-            if self.collides(i.body,i.pos):print('a')
 
         self.actions = actions
         self.parent.update_position(self)
@@ -236,7 +292,8 @@ class Player:
     def display(self):
         rect = pygame.Rect(self.pos[0]-self.dims[0]/2, self.pos[1]-self.dims[1]/2, *self.dims)
         pygame.draw.rect(self.parent.surface, COLORS['player'], rect)
-        self.animation.display(self.parent.surface, self.pos, flip=(self.facing==-1))
+        for i in self.attacks:
+            i.display()
 
     def get_rect(self):
         return Rectangle(self.pos, self.dims)
