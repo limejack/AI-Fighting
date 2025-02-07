@@ -23,6 +23,18 @@ class Attack():
         self.animation = Animation(["test"], rate=2, size=(150,150))
     def collide(self,other):
         pass
+    def display(self):
+        if self.isActive:
+            self.animation.display(self.parent.parent.surface, self.parent.pos, flip=(self.parent.facing==-1))
+    def delete(self):
+        self.parent.attacks.remove(self)
+        self.parent.parent.collidables.remove(self)
+    def collides(self,other):
+        if not self.isActive: return False
+        if other == self.parent or other in self.collided or other == self: return False
+        else:
+            return self.body.collides(other.body,self.pos,other.pos)
+
 class NeutralAttack(Attack):
     def __init__(self,parent):
         super().__init__(parent)
@@ -32,28 +44,24 @@ class NeutralAttack(Attack):
         self.pos = self.parent.pos
         self.collided = set()
 
+        self.isActive = True
         self.cool_down = 50
         self.flipped = self.parent.facing == -1
     def update(self):
         self.animation.update()
 
-        if self.animation.current_frame >= len(self.bodies):
+        if self.cool_down <= 0:
             self.delete()
+
+        self.cool_down -= 1
+
+        if self.animation.current_frame >= len(self.bodies):
+            self.isActive = False
             return
 
         self.pos = self.parent.pos
         self.body = self.bodies[self.animation.current_frame]
         self.body.flip = self.parent.facing == -1
-        self.cool_down -= 1
-    def delete(self):
-        self.parent.attacks.remove(self)
-        self.parent.parent.collidables.remove(self)
-    def display(self):
-        self.animation.display(self.parent.parent.surface, self.parent.pos, flip=(self.parent.facing==-1))
-    def collides(self,other):
-        if other == self.parent or other in self.collided or other == self: return False
-        else:
-            return self.body.collides(other.body,self.pos,other.pos)
     def collide(self,other):
         self.collided.add(other)
         if type(other) == Player:
@@ -279,13 +287,11 @@ class Player:
             for i in self.attacks:
                 if type(i) == NeutralAttack and i.cool_down >= 0:
                     canAttack = False
-                    print('a')
             if canAttack:
                 self.attacks.append(NeutralAttack(self))
                 self.parent.collidables.add(self.attacks[-1])
         for i in self.attacks:
             i.update()
-            print(i.cool_down)
 
 
         self.actions = actions
