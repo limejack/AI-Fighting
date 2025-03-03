@@ -70,15 +70,20 @@ class DrawBackground():
         self.image = 0
         self.surface = pygame.Surface((500,500))
         self.clickPos = None,None
+        self.eraseMode = False
     def draw(self,screen):
 
         self.surface.fill((0,0,0))
         self.surface.blit(self.imgs[self.image],(0,0))
+        x,y = self.relativeToAbsolute(pygame.mouse.get_pos())
 
         for i in self.rects[self.image]:
-            pygame.draw.rect(self.surface,(0,255,0),i,int(WIDTH[0]/2))
+            if self.eraseMode and self.isInside((x,y),i):
+                pygame.draw.rect(self.surface,(255,0,0),i,int(WIDTH[0]/2))
+            else:
+                pygame.draw.rect(self.surface,(0,255,0),i,int(WIDTH[0]/2))
+
         if self.isClicked[0]:
-            x,y = self.relativeToAbsolute(pygame.mouse.get_pos())
             x = x//WIDTH[0]*WIDTH[0]+WIDTH[0]
             y = y//WIDTH[1]*WIDTH[1]+WIDTH[1]
             pygame.draw.rect(self.surface,(0,255,0),(*self.isClicked,x-self.isClicked[0],y-self.isClicked[1]),int(WIDTH[0]/2))
@@ -90,10 +95,16 @@ class DrawBackground():
 
         temp = pygame.transform.scale(self.surface,self.scaleList(DIMS_MAIN))
         screen.blit(temp,self.pos)
+    def isInside(self,point,rect):
+        if point[0] > rect[0] and point[0] < rect[0]+rect[2] and point[1] > rect[1] and point[1] < rect[1]+rect[3]:return True
+        return False
+
     def scaleThing(self,number):
         return number*math.e**self.scale
     def scaleList(self,lis):
         return [self.scaleThing(i) for i in lis]
+    def toggleMode(self):
+        self.eraseMode = not self.eraseMode
     def absoluteToRelative(self,point):
         x = self.scaleThing(point[0])+self.pos[0]
         y = self.scaleThing(point[1])+self.pos[1]
@@ -110,6 +121,16 @@ class DrawBackground():
         if button == 3:
             self.clickPos = pygame.mouse.get_pos()
             self.clickPos = (self.clickPos[0]-self.pos[0],self.clickPos[1]-self.pos[1])
+            return
+        if self.eraseMode:
+            toErase = -1
+            x,y = self.relativeToAbsolute(pygame.mouse.get_pos())
+            for i in range(len(self.rects[self.image])):
+                if self.isInside((x,y),self.rects[self.image][i]):
+                    toErase = i
+            if toErase != -1:
+                del self.rects[self.image][toErase]
+            self.save(self.rects,self.name)
             return
         if self.isClicked[0]:
             x,y = self.relativeToAbsolute(pygame.mouse.get_pos())
@@ -143,6 +164,7 @@ class DrawBackground():
     def undo(self):
         if len(self.rects[self.image]) > 0:
             self.rects[self.image].pop()
+        self.save(self.rects,self.name)
     def save(self,rects,animationName):
         with open('../Hitboxes/'+animationName+'.hb','w') as outfile:
             outfile.write(str(rects))
@@ -193,6 +215,8 @@ if __name__  == '__main__':
                         drawing.utab()
                     if event.key == K_z and event.mod == 64:
                         drawing.undo()
+                    if event.key == K_r:
+                        drawing.toggleMode()
             elif event.type == MOUSEBUTTONUP:
                 if currentLocation != 'Menu':
                     drawing.unclick(event.button)
